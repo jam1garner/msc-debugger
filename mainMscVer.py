@@ -862,8 +862,8 @@ class ThreadingTab(QTableWidget):
         self.layout.addWidget(self.updateButton)
         self.setLayout(self.layout)
 
-def getText(parent):
-    text, okPressed = QInputDialog.getText(parent, "Add Breakpoint","Position:", QLineEdit.Normal, "")
+def getText(parent, title, label):
+    text, okPressed = QInputDialog.getText(parent, title, label, QLineEdit.Normal, "")
     if okPressed and text != '':
         return text
     else:
@@ -900,7 +900,7 @@ class BreakPointTab(QWidget):
         self.setLayout(self.layout)
 
     def addBreakPoint(self):
-        bpText = getText(self)
+        bpText = getText(self, "Add Breakpoint","Position:")
         if bpText != None:
             bugger.toggleMscBreakPoint(int(bpText, 16))
             events.BreakPointChanged.emit()
@@ -1014,59 +1014,89 @@ class MscStack(QListWidget):
     def __init__(self, parent):
         super().__init__(parent)
         events.VariableChange.connect(self.updateStack)
+        self.itemDoubleClicked.connect(self.editValue)
+        self.stackStart = 0
+        self.stackSize = 0
+
+    def editValue(self):
+        if exceptionState.srr0 != 0xD37B564:
+            return
+        newValText = getText(self, "Change MSC Stack Value", "Position %i:" % self.currentRow())
+        if newValText != None:
+            bugger.write(self.stackStart + (4 * self.currentRow()), struct.pack('>L',int(newValText, 0)))
+            self.updateStack()
+
+    def stackChange(self, amount):
+        bugger.write(exceptionState.gpr[31] + 0x200, struct.pack('>l', self.stackSize + amount))
 
     def updateStack(self):
         self.clear()
         if exceptionState.srr0 != 0xD37B564:
             return
-        bottomOfStack = exceptionState.gpr[31]
-        topOfStack = (struct.unpack('>l',bugger.read(exceptionState.gpr[31] + 0x200, 4))[0] * 4) + exceptionState.gpr[31]
-        stackSize = topOfStack - bottomOfStack
+        self.stackStart = exceptionState.gpr[31]
+        self.stackSize = struct.unpack('>l',bugger.read(exceptionState.gpr[31] + 0x200, 4))[0]
+        topOfStack = (self.stackSize * 4) + exceptionState.gpr[31]
+        stackSize = topOfStack - self.stackStart
         if stackSize > 3:
-            mscStack = list(struct.unpack('>' + ('L' * (stackSize // 4)), bugger.read(bottomOfStack, stackSize)))
+            mscStack = list(struct.unpack('>' + ('L' * (stackSize // 4)), bugger.read(self.stackStart, stackSize)))
             for val in mscStack:
                 self.addItem(hex(val))
+
+class LocalVarList(QListWidget):
+    def __init__(self, parent):
+        super().__init__(parent)
+        events.VariableChange.connect(self.updateLocalVars)
+        self.itemDoubleClicked.connect(self.editValue)
+        self.varCount = 0
+        self.varStart = 0
+
+    def editValue(self):
+        if exceptionState.srr0 != 0xD37B564:
+            return
+        newValText = getText(self, "Change Local Variable Value", "LocalVar%i" % self.currentRow())
+        if newValText != None:
+            bugger.write(self.varStart + (4 * self.currentRow()), struct.pack('>L',int(newValText, 0)))
+
+    def updateLocalVars(self):
+        self.clear()
+        if exceptionState.srr0 != 0xD37B564:
+            return
+
+        currentScript = mscVars.currentMsc.getScriptAtLocation(exceptionState.gpr[0])
+        if currentScript[0].command != 0x2:
+            return
+        self.varCount = currentScript[0].parameters[1]
+        readInt = lambda pos: struct.unpack('>L',bugger.read(pos, 4))[0]
+        self.varStart = (readInt(exceptionState.gpr[31] + 0x204) * 4) + exceptionState.gpr[31]
+        for i in range(self.varCount):
+            self.addItem("LocalVar%i = 0x%X" % (i, readInt(self.varStart + (4 * i))))
 
 class LocalVariableTab(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self.localVarLabels = []
-        self.localVarBoxes = []
-        for i in range(7):
-            self.localVarLabels.append(QLabel("LocalVar%i" % i, self))
-            gprBox = HexSpinBox(self)
-            self.localVarBoxes.append(gprBox)
+        self.localVarList = LocalVarList(self)
 
         self.layout = QGridLayout()
-        for i in range(7):
-            self.layout.addWidget(self.localVarLabels[i], i % 16, i // 16 * 2)
-            self.layout.addWidget(self.localVarBoxes[i], i % 16, i // 16 * 2 + 1)
+        self.layout.addWidget(QLabel("Local Vars"), 0, 0, 1, 2)
+        self.layout.addWidget(self.localVarList, 1, 0, 15, 2)
         self.setLayout(self.layout)
 
-        self.pokeButton = QPushButton("Poke", self)
-        self.resetButton = QPushButton("Reset", self)
+        self.addButton = QPushButton("+", self)
+        self.subtractButton = QPushButton("-", self)
         self.mscStackViewer = MscStack(self)
-        self.pokeButton.clicked.connect(self.pokeRegisters)
-        self.resetButton.clicked.connect(self.updateRegisters)
+        self.addButton.clicked.connect(lambda: self.mscStackViewer.stackChange(1))
+        self.subtractButton.clicked.connect(lambda: self.mscStackViewer.stackChange(-1))
+
         self.layout.addWidget(QLabel("MSC Stack"), 0, 3, 1, 2)
         self.layout.addWidget(self.mscStackViewer, 1, 3, 15, 2)
-        self.layout.addWidget(self.pokeButton, 16, 0, 1, 4)
-        self.layout.addWidget(self.resetButton, 16, 4, 1, 4)
+        self.layout.addWidget(self.addButton, 16, 3, 1, 1)
+        self.layout.addWidget(self.subtractButton, 16, 4, 1, 1)
 
-        events.VariableChange.connect(self.updateRegisters)
 
     def exceptionOccurred(self):
         self.updateRegisters()
         self.setEditEnabled(exceptionState.isBreakPoint())
-
-    def updateRegisters(self):
-        for i in range(7):
-            self.localVarBoxes[i].setValue(mscVars.localVar[i])
-
-    def pokeRegisters(self):
-        for i in range(7):
-            mscVars.localVar[i] = self.localVarBoxes[i].value()
-        bugger.write(exceptionState.gpr[29], struct.pack('>' + ('L'*7), *mscVars.localVar))
 
 class ExceptionInfo(QGroupBox):
     def __init__(self, parent):
@@ -1453,7 +1483,7 @@ class MainWidget(QWidget):
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.tabWidget)
         self.layout.addWidget(self.statusWidget)
-        self.tabWidget.setEnabled(False)
+        self.tabWidget.setEnabled(True)
         self.setLayout(self.layout)
 
 

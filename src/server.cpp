@@ -1084,6 +1084,12 @@ void InitializeDebugger() {
 bool ProgramHandler_Initialize(OSContext *context) { HANDLE_CRASH(OS_EXCEPTION_PROGRAM, InitializeDebugger) }
 
 extern "C" int _main(int argc, char *argv[]) {
+    u64 titleId = *((u64*)0x10013C10);
+
+    if (titleId == 0x0005001010040100 || titleId == 0x0005001010040200 || titleId == 0x0005001010040000) {
+        return main(argc, argv);
+    }
+    
     globals a __attribute__((aligned(8)));
     memset((char *)&a, 0, sizeof(globals));
 

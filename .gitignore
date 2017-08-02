@@ -2,3 +2,5 @@ __pycache__
 *.o
 *.bin
 code.h
+*.7z
+*.zip
