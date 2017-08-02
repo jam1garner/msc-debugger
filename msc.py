@@ -110,6 +110,7 @@ COMMAND_FORMAT = {
     0x15 : 'BH',
     0x16 : '',
     0x17 : '',
+    0x18 : '',
     0x1a : '',
     0x1b : '',
     0x1c : 'BH',
@@ -289,7 +290,7 @@ def parseCommands(text):
     labels = {}
     aliases = {}
     currentPos = 0
-    for splitCommand in splitCommands:
+    for i,splitCommand in enumerate(splitCommands):
         cmd = Command()
         if splitCommand[0][-1] == ':':
             labels[splitCommand[0][0:-1]] = currentPos
@@ -336,7 +337,8 @@ class Command:
             self.paramSize = getSizeFromFormat(COMMAND_FORMAT[self.command])
             self.parameters = list(struct.unpack('>'+COMMAND_FORMAT[self.command], byteBuffer[pos+1:pos+1+self.paramSize]))
         else:
-            self.command = 0xFF #unknown command, display as ???
+            self.parameters = [self.command]
+            self.command = 0xFFFE #unknown command, display as "byte X"
 
     def write(self, endian='>'):
         if self.command in [0xFFFE, 0xFFFF]:
@@ -344,7 +346,7 @@ class Command:
         else:
             returnBytes = bytes([self.command | (0x80 if self.pushBit else 0x0)])
         for i,paramChar in enumerate(COMMAND_FORMAT[self.command]):
-            returnBytes += struct.pack(endian+paramChar, self.parameters[i])
+            returnBytes += struct.pack(endian+paramChar, self.parameters[i] & 0xffffffff)
         return returnBytes
 
     def strParams(self):
