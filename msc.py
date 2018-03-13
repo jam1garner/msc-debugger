@@ -1,91 +1,105 @@
+#**************************************************************************#
+# This file is part of pymsc which is released under MIT License. See file #
+# LICENSE or go to https://github.com/jam1garner/pymsc/blob/master/LICENSE #
+# for full license details.                                                #
+#**************************************************************************#
+from sys import version_info
+isPython3 = version_info >= (3,)
+assert isPython3 #If this fails switch to python 3
 import struct, tempfile
 
 MSC_MAGIC = b'\xB2\xAC\xBC\xBA\xE6\x90\x32\x01\xFD\x02\x00\x00\x00\x00\x00\x00'
 
-COMMAND_NAMES = {
-    0x0 : "nop",
-    0x2 : "begin",
-    0x3 : "end",
-    0x4 : "jump4",
-    0x5 : "jump5",
-    0x6 : "return_6",
-    0x7 : "return_7",
-    0x8 : "return_8",
-    0x9 : "return_9",
-    0xa : "pushInt",
-    0xb : "pushVar",
-    0xc : "unk_C",
-    0xd : "pushShort",
-    0xe : "addi",
-    0xf : "subi",
-    0x10 : "multi",
-    0x11 : "divi",
-    0x12 : "modi",
-    0x13 : "negi",
-    0x14 : "i++",
-    0x15 : "i--",
-    0x16 : "bitAnd",
-    0x17 : "bitOr",
-    0x18 : "bitNot",
-    0x19 : "bitXor",
-    0x1a : "leftShift",
-    0x1b : "rightShift",
-    0x1c : "setVar",
-    0x1d : "i+=",
-    0x1e : "i-=",
-    0x1f : "i*=",
-    0x20 : "i/=",
-    0x21 : "i%=",
-    0x22 : "i&=",
-    0x23 : "i|=",
-    0x24 : "i^=",
-    0x25 : "equals",
-    0x26 : "notEqual",
-    0x27 : "lessThan",
-    0x28 : "lessOrEqual",
-    0x29 : "greater",
-    0x2a : "greaterOrEqual",
-    0x2b : "not",
-    0x2c : "printf",
-    0x2d : "sys",
-    0x2e : "unk_2E",
-    0x2f : "callFunc",
-    0x30 : "callFunc2",
-    0x31 : "callFunc3",
-    0x32 : "push",
-    0x33 : "pop",
-    0x34 : "if",
-    0x35 : "ifNot",
-    0x36 : "else",
-    0x37 : "unk_37",
-    0x38 : "intToFloat",
-    0x39 : "floatToInt",
-    0x3a : "addf",
-    0x3b : "subf",
-    0x3c : "multf",
-    0x3d : "divf",
-    0x3e : "negf",
-    0x3f : "f++",
-    0x40 : "f--",
-    0x41 : "floatVarSet",
-    0x42 : "float+=",
-    0x43 : "float-=",
-    0x44 : "float*=",
-    0x45 : "float/=",
-    0x46 : "floatGreater",
-    0x47 : "floatLessOrEqual",
-    0x48 : "floatLess",
-    0x49 : "floatNotEqual",
-    0x4a : "floatEqual",
-    0x4b : "floatGreaterOrEqual",
-    0x4c : "unk_4c",
-    0x4d : "exit",
-    0xFFFE : "byte",
-    0xFFFF : "long"
+COMMAND_IDS = {
+    "nop"            : 0x0,
+    "begin"          : 0x2,
+    "end"            : 0x3,
+    "jump"           : 0x4,
+    "jump4"          : 0x4,
+    "jump5"          : 0x5,
+    "return_6"       : 0x6,
+    "return_7"       : 0x7,
+    "return_8"       : 0x8,
+    "return_9"       : 0x9,
+    "pushInt"        : 0xa,
+    "pushVar"        : 0xb,
+    "error_C"        : 0xc,
+    "pushShort"      : 0xd,
+    "addi"           : 0xe,
+    "subi"           : 0xf,
+    "multi"          : 0x10,
+    "divi"           : 0x11,
+    "modi"           : 0x12,
+    "negi"           : 0x13,
+    "i++"            : 0x14,
+    "i--"            : 0x15,
+    "bitAnd"         : 0x16,
+    "bitOr"          : 0x17,
+    "bitNot"         : 0x18,
+    "bitXor"         : 0x19,
+    "leftShift"      : 0x1a,
+    "rightShift"     : 0x1b,
+    "setVar"         : 0x1c,
+    "i+="            : 0x1d,
+    "i-="            : 0x1e,
+    "i*="            : 0x1f,
+    "i/="            : 0x20,
+    "i%="            : 0x21,
+    "i&="            : 0x22,
+    "i|="            : 0x23,
+    "i^="            : 0x24,
+    "equals"         : 0x25,
+    "notEquals"      : 0x26,
+    "notEqual"       : 0x26,
+    "lessThan"       : 0x27,
+    "lessOrEqual"    : 0x28,
+    "greater"        : 0x29,
+    "greaterOrEqual" : 0x2a,
+    "not"            : 0x2b,
+    "printf"         : 0x2c,
+    "sys"            : 0x2d,
+    "try"            : 0x2e,
+    "unk_2E"         : 0x2e,
+    "callFunc"       : 0x2f,
+    "callFunc2"      : 0x30,
+    "callFunc3"      : 0x31,
+    "push"           : 0x32,
+    "pop"            : 0x33,
+    "if"             : 0x34,
+    "ifNot"          : 0x35,
+    "else"           : 0x36,
+    "error_37"       : 0x37,
+    "intToFloat"     : 0x38,
+    "floatToInt"     : 0x39,
+    "addf"           : 0x3a,
+    "subf"           : 0x3b,
+    "multf"          : 0x3c,
+    "divf"           : 0x3d,
+    "negf"           : 0x3e,
+    "f++"            : 0x3f,
+    "f--"            : 0x40,
+    "floatVarSet"    : 0x41,
+    "float+="        : 0x42,
+    "float-="        : 0x43,
+    "float*="        : 0x44,
+    "float/="        : 0x45,
+    "floatEqual"          : 0x46,
+    "floatNotEqual"       : 0x47,
+    "floatLess"           : 0x48,
+    "floatLessOrEqual"    : 0x49,
+    "floatGreater"        : 0x4a,    
+    "floatGreaterOrEqual" : 0x4b,
+    "error_4c"       : 0x4c,
+    "exit"           : 0x4d,
+    "byte"           : 0xFFFE,
+    "long"           : 0xFFFF
 }
 
-COMMAND_IDS = {v: k for k, v in COMMAND_NAMES.items()}
-
+COMMAND_NAMES = {}
+for k, v in COMMAND_IDS.items():
+    if not v in COMMAND_NAMES:
+        COMMAND_NAMES[v] = k
+        
 COMMAND_FORMAT = {
     0x0 : '',
     0x2 : 'HH',
@@ -111,6 +125,7 @@ COMMAND_FORMAT = {
     0x16 : '',
     0x17 : '',
     0x18 : '',
+    0x19 : '',
     0x1a : '',
     0x1b : '',
     0x1c : 'BH',
@@ -147,7 +162,7 @@ COMMAND_FORMAT = {
     0x3c : '',
     0x3d : '',
     0x3e : '',
-    0x3f : '',
+    0x3f : 'BH',
     0x40 : 'BH',
     0x41 : 'BH',
     0x42 : 'BH',
@@ -276,12 +291,17 @@ def _RepresentsInt(s):
     try:
         int(s, 0)
         return True
-    except ValueError:
+    except:
         return False
 
-globalAliases = {}
+def _RepresentsFloat(s):
+    try:
+        float(s.rstrip('f'))
+        return True
+    except:
+        return False
 
-def parseCommands(text):
+def parseCommands(text, refs={}, mscStrings=[]):
     lines = text.replace(', ',',').split('\n')
     lines = [line.strip() for line in lines if line.strip() != '']
     lines = [line.split('#')[0] for line in lines if line.split('#')[0] != '']
@@ -303,32 +323,45 @@ def parseCommands(text):
                 splitCommand[0] = splitCommand[0][0:-1]
             cmd.command = COMMAND_IDS[splitCommand[0]]
             currentPos += getSizeFromFormat(COMMAND_FORMAT[cmd.command]) + 1
-            if len(splitCommand) > 1:
+            if len(splitCommand) > 1 and not ((cmd.command == 0xA or cmd.command == 0xD) and splitCommand[1][0] == '"'):
                 cmd.parameters = [param for param in splitCommand[1].split(',')]
+            elif (cmd.command == 0xA or cmd.command == 0xD) and splitCommand[1][0] == '"':
+                printString = splitCommand[1][1:]
+                for s in splitCommand[2:]:
+                    printString += " "+s
+                if printString[-1] == '"':
+                    printString = printString[:-1]
+                cmd.parameters = [len(mscStrings)]
+                mscStrings.append(printString)
+
             cmds.append(cmd)
     labelNames = labels.keys()
     aliasNames = aliases.keys()
-    globalAliasNames = globalAliases.keys()
     for cmd in cmds:
         for i in range(len(cmd.parameters)):
             if cmd.parameters[i] in labelNames:
                 cmd.parameters[i] = labels[cmd.parameters[i]]
             elif cmd.parameters[i] in aliasNames:
                 cmd.parameters[i] = aliases[cmd.parameters[i]]
-            elif cmd.parameters[i] in globalAliasNames:
-                cmd.parameters[i] = globalAliases[cmd.parameters[i]]
+            elif cmd.parameters[i] in refs:
+                cmd.parameters[i] = refs[cmd.parameters[i]]
             elif _RepresentsInt(cmd.parameters[i]):
                 cmd.parameters[i] = int(cmd.parameters[i], 0)
+            elif _RepresentsFloat(cmd.parameters[i]):
+                cmd.parameters[i] = struct.unpack('>L', struct.pack('>f', float(cmd.parameters[i].rstrip('f'))))[0]
     return cmds
 
 class Command:
-    def __init__(self):
-        self.command = 0
-        self.parameters = []
-        self.pushBit = False
+    def __init__(self, command=0, parameters=[], pushBit=False):
+        self.command = command
+        self.parameters = parameters
+        self.pushBit = pushBit
         self.paramSize = 0
         self.commandPosition = 0
         self.debugString = None
+
+    def __len__(self):
+        return getSizeFromFormat(COMMAND_FORMAT[self.command]) + 1
 
     def read(self, byteBuffer, pos):
         self.command = int(byteBuffer[pos]) & 0x7F
@@ -428,9 +461,9 @@ class MscScript:
         return cmd[index].commandPosition
 
     def getCommand(self, location):
-        cmdIndex = getIndexOfInstruction(location)
+        cmdIndex = self.getIndexOfInstruction(location)
         if cmdIndex != None:
-            self.cmds[cmdIndex]
+            return self.cmds[cmdIndex]
         return None
 
     def offset(self, offset):
@@ -438,10 +471,18 @@ class MscScript:
             if cmd.command in [0x4, 0x5, 0x2e, 0x34, 0x35, 0x36]:
                 cmd.parameters[0] += offset
 
+    def setStart(self, start):
+        self.bounds[0] = start
+        i = start
+        for cmd in self.cmds:
+            cmd.commandPosition = i
+            i += len(cmd)
+
     def size(self):
         s = 0
         for cmd in self.cmds:
-            s += (0 if cmd.command in [0xFFFE, 0xFFFF] else 1) + getSizeFromFormat(COMMAND_FORMAT[cmd.command])
+            if type(cmd) == Command:
+                s += (0 if cmd.command in [0xFFFE, 0xFFFF] else 1) + getSizeFromFormat(COMMAND_FORMAT[cmd.command])
         return s
 
 def readInt(f, endian):
@@ -456,6 +497,7 @@ class MscFile:
     def __init__(self):
         self.scripts = []
         self.strings = []
+        self.symbols = {}
         self.entryPoint = 0
         self.stringSize = 0
         self.unk = 0
@@ -518,11 +560,10 @@ class MscFile:
             else:
                 end = endOfScripts
             newScript = MscScript()
-            newScript.name = 'Script '+str(i)
-            if i == self.entryPoint:
-                newScript.name = 'Entrypoint Script'
+            newScript.name = 'script_%i' % i
             newScript.read(f, start, end)
             self.scripts.append(newScript)
+        return self
 
     def readFromBytes(self, b, headerEndianess='>'):
         with tempfile.SpooledTemporaryFile(mode='w+b') as f:
@@ -540,7 +581,7 @@ class MscFile:
             for i in range(len(script)):
                 try:
                     if script[i].command == 0x2C and script[i].parameters[0] > 0:
-                        script[i].debugString = self.strings[script[i-script[i].parameters[0]].parameters[0]]
+                        script[i].debugString = self.strings[script[i-1].parameters[0]]
                 except:
                     script[i].debugString = None
 
